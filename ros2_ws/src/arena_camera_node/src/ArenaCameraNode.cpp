@@ -90,6 +90,9 @@ rcl_interfaces::msg::SetParametersResult ArenaCameraNode::param_update(const std
       gain_upper_limit_ = p.as_double();
       set_nodes_gain_();
     }
+    if (p.get_name() == "qos_reliability") {
+      pub_qos_reliability_ = p.as_string();
+    }
   }
 
   result.successful = true;
@@ -144,76 +147,13 @@ void ArenaCameraNode::initialize_()
   // m_pub_qos is rclcpp::SensorDataQoS has these defaults
   // https://github.com/ros2/rmw/blob/fb06b57975373b5a23691bb00eb39c07f1660ed7/rmw/include/rmw/qos_profiles.h#L25
 
-  /*
-  static const rmw_qos_profile_t rmw_qos_profile_sensor_data =
-  {
-    RMW_QOS_POLICY_HISTORY_KEEP_LAST,
-    5, // history depth
-    RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
-    RMW_QOS_POLICY_DURABILITY_VOLATILE,
-    RMW_QOS_DEADLINE_DEFAULT,
-    RMW_QOS_LIFESPAN_DEFAULT,
-    RMW_QOS_POLICY_LIVELINESS_SYSTEM_DEFAULT,
-    RMW_QOS_LIVELINESS_LEASE_DURATION_DEFAULT,
-    false // avoid ros namespace conventions
-  };
-  */
   rclcpp::SensorDataQoS pub_qos_;
-  // QoS history
-  if (is_passed_pub_qos_history_) {
-    if (is_supported_qos_histroy_policy(pub_qos_history_)) {
-      pub_qos_.history(
-          K_CMDLN_PARAMETER_TO_QOS_HISTORY_POLICY[pub_qos_history_]);
-    } else {
-      log_err(pub_qos_history_ + " is not supported for this node");
-      // TODO
-      // should thorow instead??
-      // should this keeps shutting down if for some reasons this node is kept
-      // alive
-      throw;
-    }
+  if (pub_qos_reliability_ == "best_effort") {
+    pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
+  } else if (pub_qos_reliability_ == "reliable") {
+    pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
   }
-  // QoS depth
-  if (is_passed_pub_qos_history_depth_ &&
-      K_CMDLN_PARAMETER_TO_QOS_HISTORY_POLICY[pub_qos_history_] ==
-          RMW_QOS_POLICY_HISTORY_KEEP_LAST) {
-    // TODO
-    // test err msg withwhen -1
-    pub_qos_.keep_last(pub_qos_history_depth_);
-  }
-
-  // Qos reliability
-  if (is_passed_pub_qos_reliability_) {
-    if (is_supported_qos_reliability_policy(pub_qos_reliability_)) {
-      pub_qos_.reliability(
-          K_CMDLN_PARAMETER_TO_QOS_RELIABILITY_POLICY[pub_qos_reliability_]);
-    } else {
-      log_err(pub_qos_reliability_ + " is not supported for this node");
-      throw;
-    }
-  }
-
-  // rmw_qos_history_policy_t history_policy_ = RMW_QOS_
-  // rmw_qos_history_policy_t;
-  // auto pub_qos_init = rclcpp::QoSInitialization(history_policy_, );
-
   m_pub_ = this->create_publisher<sensor_msgs::msg::Image>("image_raw", pub_qos_);
-
-  std::stringstream pub_qos_info;
-  auto pub_qos_profile = pub_qos_.get_rmw_qos_profile();
-  pub_qos_info
-      << '\t' << "QoS history     = "
-      << K_QOS_HISTORY_POLICY_TO_CMDLN_PARAMETER[pub_qos_profile.history]
-      << '\n';
-  pub_qos_info << "\t\t\t\t"
-               << "QoS depth       = " << pub_qos_profile.depth << '\n';
-  pub_qos_info << "\t\t\t\t"
-               << "QoS reliability = "
-               << K_QOS_RELIABILITY_POLICY_TO_CMDLN_PARAMETER[pub_qos_profile
-                                                                  .reliability]
-               << '\n';
-
-  log_info(pub_qos_info.str());
 }
 
 void ArenaCameraNode::wait_for_device_timer_callback_()
