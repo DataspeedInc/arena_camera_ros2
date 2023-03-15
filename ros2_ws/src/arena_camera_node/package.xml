@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>arena_camera_node</name>
+  <name>arena_camera_ros2</name>
   <version>0.0.1</version>
 
   <description>Lucid Camera ROS2 Driver Node</description>
@@ -10,7 +10,7 @@
   <license>MIT</license>
 
 
-  <!-- 
+  <!--
     NEEDED FOR MULTIPLE REASONS/STAGES
       https://www.ros.org/reps/rep-0149.html#depend-multiple
 
@@ -21,6 +21,7 @@
 
   -->
   <depend>rclcpp</depend>
+  <depend>rclcpp_components</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
 
@@ -49,7 +50,7 @@
   <!--
     NEEDED FOR RUNNING PKG UNIT TESTS
       https://www.ros.org/reps/rep-0149.html#test-depend-multiple
-      
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
   -->

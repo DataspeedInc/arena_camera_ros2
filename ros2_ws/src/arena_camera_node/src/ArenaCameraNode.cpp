@@ -11,6 +11,8 @@
 #include "rclcpp_adapter/pixelformat_translation.h"
 #include "rclcpp_adapter/quilty_of_service_translation.cpp"
 
+namespace arena_camera_ros2 {
+
 void ArenaCameraNode::parse_parameters_()
 {
   std::string nextParameterToDeclare = "";
@@ -585,3 +587,8 @@ void ArenaCameraNode::set_nodes_test_pattern_image_()
   auto nodemap = m_pDevice->GetNodeMap();
   Arena::SetNodeValue<GenICam::gcstring>(nodemap, "TestPattern", "Pattern3");
 }
+
+}
+
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE(arena_camera_ros2::ArenaCameraNode)
