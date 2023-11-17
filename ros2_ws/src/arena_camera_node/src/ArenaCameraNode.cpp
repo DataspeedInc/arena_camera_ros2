@@ -16,8 +16,8 @@ void ArenaCameraNode::parse_parameters_()
   std::string nextParameterToDeclare = "";
   try {
     nextParameterToDeclare = "serial";
-    serial_ = this->declare_parameter<std::string>("serial", "");
-    is_passed_serial_ = serial_ != "";
+    serial_ = std::to_string(this->declare_parameter<int>("serial", 0));
+    is_passed_serial_ = serial_ != "0";
 
     nextParameterToDeclare = "pixelformat";
     pixelformat_ros_ = this->declare_parameter("pixelformat", "");
@@ -32,21 +32,20 @@ void ArenaCameraNode::parse_parameters_()
     is_passed_height = height_ > 0;
 
     nextParameterToDeclare = "gain";
-    gain_ = this->declare_parameter("gain", -1.0);
-    is_passed_gain_ = gain_ >= 0;
+    gain_ = this->declare_parameter("gain", 0.0);
+    gain_lower_limit_ = this->declare_parameter("gain_lower_limit", 1.0);
+    gain_upper_limit_ = this->declare_parameter("gain_upper_limit", 10.0);
+
+    nextParameterToDeclare = "gamma";
+    gamma_ = this->declare_parameter("gamma", -1.0);
+    is_passed_gamma_ = gamma_ >= 0;
 
     nextParameterToDeclare = "exposure_time";
-    exposure_time_ = this->declare_parameter("exposure_time", -1.0);
-    is_passed_exposure_time_ = exposure_time_ >= 0;
+    exposure_time_ = this->declare_parameter("exposure_time", 0.0);
 
     nextParameterToDeclare = "trigger_mode";
     trigger_mode_activated_ = this->declare_parameter("trigger_mode", false);
     // no need to is_passed_trigger_mode_ because it is already a boolean
-
-    nextParameterToDeclare = "topic";
-    topic_ = this->declare_parameter(
-        "topic", std::string("/") + this->get_name() + "/images");
-    // no need to is_passed_topic_
 
     nextParameterToDeclare = "qos_history";
     pub_qos_history_ = this->declare_parameter("qos_history", "");
@@ -65,6 +64,38 @@ void ArenaCameraNode::parse_parameters_()
     throw;
   }
 }
+
+rcl_interfaces::msg::SetParametersResult ArenaCameraNode::param_update(const std::vector<rclcpp::Parameter>& parameters) {
+  rcl_interfaces::msg::SetParametersResult result;
+
+  for (const rclcpp::Parameter& p : parameters) {
+    if (p.get_name() == "gamma") {
+      gamma_ = p.as_double();
+      is_passed_gamma_ = gamma_ >= 0;
+      set_nodes_gamma_();
+    }
+    if (p.get_name() == "exposure_time") {
+      exposure_time_ = p.as_double();
+      set_nodes_exposure_();
+    }
+    if (p.get_name() == "gain") {
+      gain_ = p.as_double();
+      set_nodes_gain_();
+    }
+    if (p.get_name() == "gain_lower_limit") {
+      gain_lower_limit_ = p.as_double();
+      set_nodes_gain_();
+    }
+    if (p.get_name() == "gain_upper_limit") {
+      gain_upper_limit_ = p.as_double();
+      set_nodes_gain_();
+    }
+  }
+
+  result.successful = true;
+  return result;
+}
+
 
 void ArenaCameraNode::initialize_()
 {
@@ -166,8 +197,7 @@ void ArenaCameraNode::initialize_()
   // rmw_qos_history_policy_t;
   // auto pub_qos_init = rclcpp::QoSInitialization(history_policy_, );
 
-  m_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-      this->get_parameter("topic").as_string(), pub_qos_);
+  m_pub_ = this->create_publisher<sensor_msgs::msg::Image>("image_raw", pub_qos_);
 
   std::stringstream pub_qos_info;
   auto pub_qos_profile = pub_qos_.get_rmw_qos_profile();
@@ -207,13 +237,16 @@ void ArenaCameraNode::wait_for_device_timer_callback_()
     m_wait_for_device_timer_callback_->cancel();
     log_info(std::to_string(device_infos.size()) +
              " arena device(s) has been discoved.");
-    run_();
+    std::thread{std::bind(&ArenaCameraNode::run_, this)}.detach();
   }
 }
 
 void ArenaCameraNode::run_()
 {
   auto device = create_device_ros_();
+  if (!device) {
+    return;
+  }
   m_pDevice.reset(device);
   set_nodes_();
   m_pDevice->StartStream();
@@ -232,11 +265,11 @@ void ArenaCameraNode::publish_images_()
     try {
       auto p_image_msg = std::make_unique<sensor_msgs::msg::Image>();
       pImage = m_pDevice->GetImage(1000);
-      msg_form_image_(pImage, *p_image_msg);
+      msg_from_image_(pImage, *p_image_msg);
 
       m_pub_->publish(std::move(p_image_msg));
 
-      log_info(std::string("image ") + std::to_string(pImage->GetFrameId()) +
+      log_debug(std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_);
       this->m_pDevice->RequeueBuffer(pImage);
 
@@ -251,7 +284,7 @@ void ArenaCameraNode::publish_images_()
   };
 }
 
-void ArenaCameraNode::msg_form_image_(Arena::IImage* pImage,
+void ArenaCameraNode::msg_from_image_(Arena::IImage* pImage,
                                       sensor_msgs::msg::Image& image_msg)
 {
   try {
@@ -352,7 +385,7 @@ void ArenaCameraNode::publish_an_image_on_trigger_(
     pImage = m_pDevice->GetImage(1000);
     auto msg = std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_;
-    msg_form_image_(pImage, *p_image_msg);
+    msg_from_image_(pImage, *p_image_msg);
     m_pub_->publish(std::move(p_image_msg));
     response->message = msg;
     response->success = true;
@@ -394,19 +427,27 @@ Arena::IDevice* ArenaCameraNode::create_device_ros_()
   m_pSystem->UpdateDevices(100);  // in millisec
   auto device_infos = m_pSystem->GetDevices();
   if (!device_infos.size()) {
-    // TODO: handel disconnection
+    // TODO: handle disconnection
     throw std::runtime_error(
         "camera(s) were disconnected after they were discovered");
   }
 
   auto index = 0;
   if (is_passed_serial_) {
-    index = DeviceInfoHelper::get_index_of_serial(device_infos, serial_);
+    try {
+      index = DeviceInfoHelper::get_index_of_serial(device_infos, serial_);
+    } catch (...) {
+      RCLCPP_FATAL_STREAM(get_logger(), "Could not find camera with serial number " << std::quoted(serial_));
+      rclcpp::shutdown();
+      return nullptr;
+    }
   }
 
   auto pDevice = m_pSystem->CreateDevice(device_infos.at(index));
+
   log_info(std::string("device created ") +
            DeviceInfoHelper::info(device_infos.at(index)));
+
   return pDevice;
 }
 
@@ -415,6 +456,7 @@ void ArenaCameraNode::set_nodes_()
   set_nodes_load_default_profile_();
   set_nodes_roi_();
   set_nodes_gain_();
+  set_nodes_gamma_();
   set_nodes_pixelformat_();
   set_nodes_exposure_();
   set_nodes_trigger_mode_();
@@ -457,10 +499,42 @@ void ArenaCameraNode::set_nodes_roi_()
 
 void ArenaCameraNode::set_nodes_gain_()
 {
-  if (is_passed_gain_) {  // not default
+  auto nodemap = m_pDevice->GetNodeMap();
+  try {
+    if (gain_ <= 0) {
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "GainAuto", "Continuous");
+      Arena::SetNodeValue<double>(nodemap, "GainAutoLowerLimit", gain_lower_limit_);
+      Arena::SetNodeValue<double>(nodemap, "GainAutoUpperLimit", gain_upper_limit_);
+      RCLCPP_INFO_STREAM(get_logger(), "Set automatic gain between " << gain_lower_limit_ << " and " << gain_upper_limit_);
+    } else {
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "GainAuto", "Off");
+      Arena::SetNodeValue<double>(nodemap, "Gain", gain_);
+      RCLCPP_INFO_STREAM(get_logger(), "Set fixed gain to " << gain_);
+    }
+  } catch (GenICam_3_3_LUCID::OutOfRangeException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+  } catch (GenICam_3_3_LUCID::RuntimeException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+  } catch (GenICam_3_3_LUCID::LogicalErrorException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+  }
+}
+
+void ArenaCameraNode::set_nodes_gamma_()
+{
+  if (is_passed_gamma_) {
     auto nodemap = m_pDevice->GetNodeMap();
-    Arena::SetNodeValue<double>(nodemap, "Gain", gain_);
-    log_info(std::string("\tGain set to ") + std::to_string(gain_));
+    try {
+      Arena::SetNodeValue<bool>(nodemap, "GammaEnable", true);
+      Arena::SetNodeValue<double>(nodemap, "Gamma", gamma_);
+      RCLCPP_INFO_STREAM(get_logger(), "Set gamma to " << gamma_);
+    } catch (GenICam_3_3_LUCID::OutOfRangeException& ex) {
+      RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+    } catch (GenICam_3_3_LUCID::RuntimeException& ex) {
+      RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+    } catch (GenICam_3_3_LUCID::LogicalErrorException& ex) {
+      RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+    }
   }
 }
 
@@ -505,10 +579,26 @@ void ArenaCameraNode::set_nodes_pixelformat_()
 
 void ArenaCameraNode::set_nodes_exposure_()
 {
-  if (is_passed_exposure_time_) {
-    auto nodemap = m_pDevice->GetNodeMap();
-    Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAuto", "Off");
-    Arena::SetNodeValue<double>(nodemap, "ExposureTime", exposure_time_);
+  auto nodemap = m_pDevice->GetNodeMap();
+
+  try {
+    if (exposure_time_ <= 0) {
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAuto", "Continuous");
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAutoLimitAuto", "Continuous");
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAutoAlgorithm", "Mean");
+      RCLCPP_INFO_STREAM(get_logger(), "Set automatic exposure");
+    } else {
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAuto", "Off");
+      Arena::SetNodeValue<GenICam::gcstring>(nodemap, "ExposureAutoLimitAuto", "Off");
+      Arena::SetNodeValue<double>(nodemap, "ExposureTime", exposure_time_);
+      RCLCPP_INFO_STREAM(get_logger(), "Set fixed exposure time to " << exposure_time_);
+    }
+  } catch (GenICam_3_3_LUCID::OutOfRangeException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+  } catch (GenICam_3_3_LUCID::RuntimeException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
+  } catch (GenICam_3_3_LUCID::LogicalErrorException& ex) {
+    RCLCPP_ERROR_STREAM(get_logger(), ex.what());
   }
 }
 

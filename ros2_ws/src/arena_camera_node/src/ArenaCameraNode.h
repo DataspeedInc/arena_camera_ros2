@@ -64,10 +64,13 @@ class ArenaCameraNode : public rclcpp::Node
   bool is_passed_height;
 
   double gain_;
-  bool is_passed_gain_;
+  double gain_lower_limit_;
+  double gain_upper_limit_;
+
+  double gamma_;
+  bool is_passed_gamma_;
 
   double exposure_time_;
-  bool is_passed_exposure_time_;
 
   std::string pixelformat_pfnc_;
   std::string pixelformat_ros_;
@@ -97,6 +100,7 @@ class ArenaCameraNode : public rclcpp::Node
   void set_nodes_load_default_profile_();
   void set_nodes_roi_();
   void set_nodes_gain_();
+  void set_nodes_gamma_();
   void set_nodes_pixelformat_();
   void set_nodes_exposure_();
   void set_nodes_trigger_mode_();
@@ -106,6 +110,6 @@ class ArenaCameraNode : public rclcpp::Node
   void publish_an_image_on_trigger_(
       std::shared_ptr<std_srvs::srv::Trigger::Request> request,
       std::shared_ptr<std_srvs::srv::Trigger::Response> response);
-  void msg_form_image_(Arena::IImage* pImage,
+  void msg_from_image_(Arena::IImage* pImage,
                        sensor_msgs::msg::Image& image_msg);
 };
