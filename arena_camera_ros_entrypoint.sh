@@ -1,11 +1,9 @@
 #!/bin/bash
 
 set -e
-cd /arena_camera_ros2/ros2_ws 
-#rosdep fix-permissions
-#rosdep update
+source /opt/ros/humble/setup.bash
 rosdep install --from-paths src --ignore-src -r -y;
-colcon build --symlink-install
-source install/local_setup.bash
+./release.bash
+export ROS_DOMAIN_ID=1
 
-exec "$@"
+$@
