@@ -59,6 +59,7 @@ install(
 install(
   DIRECTORY
     launch
+    camera_intrinsics
   DESTINATION share/${PROJECT_NAME}/
 )
 

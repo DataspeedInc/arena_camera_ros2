@@ -45,7 +45,7 @@ void ArenaCameraNode::parse_parameters_()
   pub_qos_history_depth_ = this->declare_parameter<int>("qos_history_depth", 0);
   is_passed_pub_qos_history_depth_ = pub_qos_history_depth_ > 0;
 
-  pub_qos_reliability_ = this->declare_parameter<std::string>("qos_reliability", "");
+  pub_qos_reliability_ = this->declare_parameter<std::string>("qos_reliability", "reliable");
   is_passed_pub_qos_reliability_ = pub_qos_reliability_ != "";
 
   frame_id_ = this->declare_parameter<std::string>("frame_id", "camera");
@@ -173,6 +173,8 @@ void ArenaCameraNode::initialize_()
   if (pub_qos_reliability_ == "best_effort") {
     pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT);
   } else if (pub_qos_reliability_ == "reliable") {
+    pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
+  } else {
     pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
   }
 

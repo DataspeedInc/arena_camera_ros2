@@ -14,6 +14,7 @@
 // ros
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>           // WallTimer
+#include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <sensor_msgs/msg/image.hpp>  //image msg published
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <std_srvs/srv/trigger.hpp>   // Trigger
@@ -117,6 +118,8 @@ class ArenaCameraNode : public rclcpp::Node
   void set_nodes_trigger_mode_();
   void set_nodes_test_pattern_image_();
   void publish_images_();
+
+  rcl_interfaces::msg::SetParametersResult param_update(const std::vector<rclcpp::Parameter>& parameters);
 
   void publish_an_image_on_trigger_(
       std::shared_ptr<std_srvs::srv::Trigger::Request> request,
