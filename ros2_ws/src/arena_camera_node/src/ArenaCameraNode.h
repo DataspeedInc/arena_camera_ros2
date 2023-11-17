@@ -15,7 +15,10 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/timer.hpp>           // WallTimer
 #include <sensor_msgs/msg/image.hpp>  //image msg published
+#include <sensor_msgs/msg/camera_info.hpp>
 #include <std_srvs/srv/trigger.hpp>   // Trigger
+
+#include <yaml-cpp/yaml.h>
 
 // arena sdk
 #include "ArenaApi.h"
@@ -51,9 +54,14 @@ class ArenaCameraNode : public rclcpp::Node
   std::shared_ptr<Arena::ISystem> m_pSystem;
   std::shared_ptr<Arena::IDevice> m_pDevice;
 
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_img_;
+  rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr pub_camera_info_;
   rclcpp::TimerBase::SharedPtr m_wait_for_device_timer_callback_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr m_trigger_an_image_srv_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb;    /*!< ROS parameter change callback handle */
+  sensor_msgs::msg::CameraInfo camera_info_msg;
+  bool camera_info_available_;
+  std::string frame_id_;
 
   std::string serial_;
   bool is_passed_serial_;
@@ -116,3 +124,5 @@ class ArenaCameraNode : public rclcpp::Node
   void msg_from_image_(Arena::IImage* pImage,
                        sensor_msgs::msg::Image& image_msg);
 };
+
+}

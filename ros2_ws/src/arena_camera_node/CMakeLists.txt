@@ -31,6 +31,9 @@ add_library(${PROJECT_NAME} SHARED
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<INSTALL_INTERFACE:include>
 )
+target_link_libraries(${PROJECT_NAME}
+  yaml-cpp
+)
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   rclcpp_components

@@ -15,56 +15,76 @@ namespace arena_camera_ros2 {
 
 void ArenaCameraNode::parse_parameters_()
 {
-  std::string nextParameterToDeclare = "";
-  try {
-    nextParameterToDeclare = "serial";
-    serial_ = std::to_string(this->declare_parameter<int>("serial", 0));
-    is_passed_serial_ = serial_ != "0";
+  serial_ = std::to_string(this->declare_parameter<int>("serial", 0));
+  is_passed_serial_ = serial_ != "0";
 
-    nextParameterToDeclare = "pixelformat";
-    pixelformat_ros_ = this->declare_parameter("pixelformat", "");
-    is_passed_pixelformat_ros_ = pixelformat_ros_ != "";
+  pixelformat_ros_ = this->declare_parameter<std::string>("pixelformat", "");
+  is_passed_pixelformat_ros_ = pixelformat_ros_ != "";
 
-    nextParameterToDeclare = "width";
-    width_ = this->declare_parameter("width", 0);
-    is_passed_width = width_ > 0;
+  width_ = this->declare_parameter<int>("width", 0);
+  is_passed_width = width_ > 0;
 
-    nextParameterToDeclare = "height";
-    height_ = this->declare_parameter("height", 0);
-    is_passed_height = height_ > 0;
+  height_ = this->declare_parameter<int>("height", 0);
+  is_passed_height = height_ > 0;
 
-    nextParameterToDeclare = "gain";
-    gain_ = this->declare_parameter("gain", 0.0);
-    gain_lower_limit_ = this->declare_parameter("gain_lower_limit", 1.0);
-    gain_upper_limit_ = this->declare_parameter("gain_upper_limit", 10.0);
+  gain_ = this->declare_parameter<double>("gain", 0.0);
+  gain_lower_limit_ = this->declare_parameter<double>("gain_lower_limit", 1.0);
+  gain_upper_limit_ = this->declare_parameter<double>("gain_upper_limit", 10.0);
 
-    nextParameterToDeclare = "gamma";
-    gamma_ = this->declare_parameter("gamma", -1.0);
-    is_passed_gamma_ = gamma_ >= 0;
+  gamma_ = this->declare_parameter<double>("gamma", -1.0);
+  is_passed_gamma_ = gamma_ >= 0;
 
-    nextParameterToDeclare = "exposure_time";
-    exposure_time_ = this->declare_parameter("exposure_time", 0.0);
+  exposure_time_ = this->declare_parameter<double>("exposure_time", 0.0);
 
-    nextParameterToDeclare = "trigger_mode";
-    trigger_mode_activated_ = this->declare_parameter("trigger_mode", false);
-    // no need to is_passed_trigger_mode_ because it is already a boolean
+  trigger_mode_activated_ = this->declare_parameter<bool>("trigger_mode", false);
+  // no need to is_passed_trigger_mode_ because it is already a boolean
 
-    nextParameterToDeclare = "qos_history";
-    pub_qos_history_ = this->declare_parameter("qos_history", "");
-    is_passed_pub_qos_history_ = pub_qos_history_ != "";
+  pub_qos_history_ = this->declare_parameter<std::string>("qos_history", "");
+  is_passed_pub_qos_history_ = pub_qos_history_ != "";
 
-    nextParameterToDeclare = "qos_history_depth";
-    pub_qos_history_depth_ = this->declare_parameter("qos_history_depth", 0);
-    is_passed_pub_qos_history_depth_ = pub_qos_history_depth_ > 0;
+  pub_qos_history_depth_ = this->declare_parameter<int>("qos_history_depth", 0);
+  is_passed_pub_qos_history_depth_ = pub_qos_history_depth_ > 0;
 
-    nextParameterToDeclare = "qos_reliability";
-    pub_qos_reliability_ = this->declare_parameter("qos_reliability", "");
-    is_passed_pub_qos_reliability_ = pub_qos_reliability_ != "";
+  pub_qos_reliability_ = this->declare_parameter<std::string>("qos_reliability", "");
+  is_passed_pub_qos_reliability_ = pub_qos_reliability_ != "";
 
-  } catch (rclcpp::ParameterTypeException& e) {
-    log_err(nextParameterToDeclare + " argument");
-    throw;
+  frame_id_ = this->declare_parameter<std::string>("frame_id", "camera");
+  std::string camera_info_file = this->declare_parameter<std::string>("camera_info_file", "");
+  YAML::Node camera_info_data;
+  if (camera_info_file.empty()) {
+    camera_info_available_ = false;
+    RCLCPP_ERROR(get_logger(), "No camera info file path provided; no sensor_msgs/CameraInfo messages will be published");
+  } else {
+    try {
+      camera_info_data = YAML::LoadFile(camera_info_file);
+      camera_info_msg.width = camera_info_data["image_width"].as<int>();
+      camera_info_msg.height = camera_info_data["image_height"].as<int>();
+      camera_info_msg.distortion_model = camera_info_data["distortion_model"].as<std::string>();
+      auto camera_matrix_data = camera_info_data["camera_matrix"]["data"];
+      for (int i = 0; i < 9; i++) {
+        camera_info_msg.k[i] = camera_matrix_data[i].as<double>();
+      }
+      auto distortion_data = camera_info_data["distortion_coefficients"]["data"];
+      camera_info_msg.d.reserve(5);
+      for (int i = 0; i < 5; i++) {
+        camera_info_msg.d[i] = distortion_data[i].as<double>();
+      }
+      auto rectification_data = camera_info_data["rectification_matrix"]["data"];
+      for (int i = 0; i < 9; i++) {
+        camera_info_msg.r[i] = rectification_data[i].as<double>();
+      }
+      auto projection_data = camera_info_data["projection_matrix"]["data"];
+      for (int i = 0; i < 12; i++) {
+        camera_info_msg.p[i] = projection_data[i].as<double>();
+      }
+      camera_info_available_ = true;
+    } catch (YAML::BadFile& ex) {
+      RCLCPP_ERROR_STREAM(get_logger(), "Error parsing camera info file: " << ex.what());
+      camera_info_available_ = false;
+    }
   }
+
+  param_cb = add_on_set_parameters_callback(std::bind(&ArenaCameraNode::param_update, this, std::placeholders::_1));
 }
 
 rcl_interfaces::msg::SetParametersResult ArenaCameraNode::param_update(const std::vector<rclcpp::Parameter>& parameters) {
@@ -155,7 +175,12 @@ void ArenaCameraNode::initialize_()
   } else if (pub_qos_reliability_ == "reliable") {
     pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
   }
-  m_pub_ = this->create_publisher<sensor_msgs::msg::Image>("image_raw", pub_qos_);
+
+  pub_img_ = this->create_publisher<sensor_msgs::msg::Image>("image_raw", pub_qos_);
+
+  if (camera_info_available_) {
+    pub_camera_info_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", pub_qos_);
+  }
 }
 
 void ArenaCameraNode::wait_for_device_timer_callback_()
@@ -209,7 +234,11 @@ void ArenaCameraNode::publish_images_()
       pImage = m_pDevice->GetImage(1000);
       msg_from_image_(pImage, *p_image_msg);
 
-      m_pub_->publish(std::move(p_image_msg));
+      if (pub_camera_info_) {
+        camera_info_msg.header = p_image_msg->header;
+        pub_camera_info_->publish(camera_info_msg);
+      }
+      pub_img_->publish(std::move(p_image_msg));
 
       log_debug(std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_);
@@ -234,11 +263,10 @@ void ArenaCameraNode::msg_from_image_(Arena::IImage* pImage,
     //      - stamp.sec
     //      - stamp.nanosec
     //      - Frame ID
-    image_msg.header.stamp.sec =
-        static_cast<uint32_t>(pImage->GetTimestampNs() / 1000000000);
-    image_msg.header.stamp.nanosec =
-        static_cast<uint32_t>(pImage->GetTimestampNs() % 1000000000);
-    image_msg.header.frame_id = std::to_string(pImage->GetFrameId());
+    auto now_ns = get_clock()->now().nanoseconds();
+    image_msg.header.stamp.sec = static_cast<uint32_t>(now_ns / 1000000000);
+    image_msg.header.stamp.nanosec = static_cast<uint32_t>(now_ns % 1000000000);
+    image_msg.header.frame_id = frame_id_;
 
     //
     // 2 ) Height
@@ -328,7 +356,7 @@ void ArenaCameraNode::publish_an_image_on_trigger_(
     auto msg = std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_;
     msg_from_image_(pImage, *p_image_msg);
-    m_pub_->publish(std::move(p_image_msg));
+    pub_img_->publish(std::move(p_image_msg));
     response->message = msg;
     response->success = true;
 
