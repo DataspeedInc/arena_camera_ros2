@@ -1,0 +1,21 @@
+arena_camera_multicam:
+  ros__parameters:
+    camera_221202871:
+      camera_name: low_res_camera
+      gain: 10.0
+      gain_lower_limit: 1.0
+      gain_upper_limit: 10.0
+      exposure: 6000.0
+      gamma: 0.5
+      camera_info_package: arena_camera_ros2
+      camera_info_file: camera_intrinsics/test_camera_info.yaml
+
+    camera_233301117:
+      camera_name: high_res_camera
+      gain: 10.0
+      gain_lower_limit: 1.0
+      gain_upper_limit: 10.0
+      exposure: 2000.0
+      gamma: 0.5
+      camera_info_package: arena_camera_ros2
+      camera_info_file: camera_intrinsics/test_camera_info.yaml

@@ -4,6 +4,7 @@
 
 // ROS
 #include "rmw/types.h"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 // ArenaSDK
 #include "ArenaCameraNode.h"
@@ -29,7 +30,7 @@ void ArenaCameraNode::parse_parameters_()
 
   gain_ = this->declare_parameter<double>("gain", 0.0);
   gain_lower_limit_ = this->declare_parameter<double>("gain_lower_limit", 1.0);
-  gain_upper_limit_ = this->declare_parameter<double>("gain_upper_limit", 10.0);
+  gain_upper_limit_ = this->declare_parameter<double>("gain_upper_limit", 48.0);
 
   gamma_ = this->declare_parameter<double>("gamma", -1.0);
   is_passed_gamma_ = gamma_ >= 0;
@@ -49,14 +50,17 @@ void ArenaCameraNode::parse_parameters_()
   is_passed_pub_qos_reliability_ = pub_qos_reliability_ != "";
 
   frame_id_ = this->declare_parameter<std::string>("frame_id", "camera");
+  std::string camera_info_pkg = this->declare_parameter<std::string>("camera_info_package", "");
   std::string camera_info_file = this->declare_parameter<std::string>("camera_info_file", "");
+  std::string camera_info_path = ament_index_cpp::get_package_share_directory(camera_info_pkg) + "/" + camera_info_file;
+
   YAML::Node camera_info_data;
-  if (camera_info_file.empty()) {
+  if (camera_info_path.empty()) {
     camera_info_available_ = false;
     RCLCPP_ERROR(get_logger(), "No camera info file path provided; no sensor_msgs/CameraInfo messages will be published");
   } else {
     try {
-      camera_info_data = YAML::LoadFile(camera_info_file);
+      camera_info_data = YAML::LoadFile(camera_info_path);
       camera_info_msg.width = camera_info_data["image_width"].as<int>();
       camera_info_msg.height = camera_info_data["image_height"].as<int>();
       camera_info_msg.distortion_model = camera_info_data["distortion_model"].as<std::string>();
@@ -102,14 +106,6 @@ rcl_interfaces::msg::SetParametersResult ArenaCameraNode::param_update(const std
     }
     if (p.get_name() == "gain") {
       gain_ = p.as_double();
-      set_nodes_gain_();
-    }
-    if (p.get_name() == "gain_lower_limit") {
-      gain_lower_limit_ = p.as_double();
-      set_nodes_gain_();
-    }
-    if (p.get_name() == "gain_upper_limit") {
-      gain_upper_limit_ = p.as_double();
       set_nodes_gain_();
     }
     if (p.get_name() == "qos_reliability") {

@@ -6,7 +6,7 @@
 FROM osrf/ros:humble-desktop
 RUN apt-get update \
     && apt-get upgrade -y \
-    && apt-get install python3-pip ros-dev-tools -y \
+    && apt-get install python3-pip ros-dev-tools ros-humble-image-proc -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ARGS might want to change ---------------------------------------------------
@@ -58,11 +58,11 @@ RUN for whl_package in `ls ${arena_api_parent}/*.whl`; do pip3 install $whl_pack
 
 # setup workspace -------------------------------------------------------------
 ADD ./arena_camera_ros_entrypoint.sh /
+ADD ./fastrtps-profile.xml /
 
 RUN echo "source ${container_ros_ws}/install/setup.bash" >> /root/.bashrc
 
 ENTRYPOINT [ "/arena_camera_ros_entrypoint.sh" ]
-# CMD [ "/run_camera_driver.sh" ]
 CMD [ "bash" ]
 
 WORKDIR ${container_ros_ws}

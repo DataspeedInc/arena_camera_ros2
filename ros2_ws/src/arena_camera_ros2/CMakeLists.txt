@@ -2,12 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(arena_camera_ros2)
 
-# Default to C99
-if(NOT CMAKE_C_STANDARD)
-  set(CMAKE_C_STANDARD 99)
-endif()
-
-# Default to C++14
+# Default to C++17
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
@@ -24,6 +19,8 @@ find_package(arena_sdk REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/ArenaCameraNode.cpp
+  src/MultiCamSync.cpp
+  src/SingleCamera.cpp
   src/light_arena/deviceinfo_helper.cpp
   src/rclcpp_adapter/pixelformat_translation.cpp
   src/rclcpp_adapter/quilty_of_service_translation.cpp
@@ -47,10 +44,21 @@ rclcpp_components_register_node(${PROJECT_NAME}
   EXECUTABLE ${PROJECT_NAME}_node
 )
 
+add_executable(${PROJECT_NAME}_multicam
+  src/multicam_sync_node.cpp
+)
+target_include_directories(${PROJECT_NAME}_multicam PUBLIC
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(${PROJECT_NAME}_multicam
+  ${PROJECT_NAME}
+)
+
 install(
   TARGETS
     ${PROJECT_NAME}
     ${PROJECT_NAME}_node
+    ${PROJECT_NAME}_multicam
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -58,6 +66,7 @@ install(
 
 install(
   DIRECTORY
+    config
     launch
     camera_intrinsics
   DESTINATION share/${PROJECT_NAME}/
