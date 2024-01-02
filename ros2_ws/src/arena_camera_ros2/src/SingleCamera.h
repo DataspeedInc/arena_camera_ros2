@@ -1,8 +1,10 @@
 #pragma once
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <yaml-cpp/yaml.h>
+#include <cv_bridge/cv_bridge.h>
 
 #include "ArenaApi.h"
 #include "rclcpp_adapter/pixelformat_translation.h"
@@ -27,6 +29,7 @@ class SingleCamera {
 
   private:
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_img;
+    rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr pub_compressed_img;
     rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr pub_cam_info;
 
     std::shared_ptr<Arena::IDevice> m_pDevice;

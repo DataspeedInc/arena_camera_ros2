@@ -16,6 +16,7 @@ find_package(std_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(arena_sdk REQUIRED)
+find_package(cv_bridge REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED
   src/ArenaCameraNode.cpp
@@ -38,6 +39,7 @@ ament_target_dependencies(${PROJECT_NAME}
   std_srvs
   sensor_msgs
   arena_sdk
+  cv_bridge
 )
 rclcpp_components_register_node(${PROJECT_NAME}
   PLUGIN "${PROJECT_NAME}::ArenaCameraNode"

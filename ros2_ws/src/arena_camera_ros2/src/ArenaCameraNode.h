@@ -16,6 +16,7 @@
 #include <rclcpp/timer.hpp>           // WallTimer
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <sensor_msgs/msg/image.hpp>  //image msg published
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <std_srvs/srv/trigger.hpp>   // Trigger
 
@@ -56,6 +57,7 @@ class ArenaCameraNode : public rclcpp::Node
   std::shared_ptr<Arena::IDevice> m_pDevice;
 
   rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_img_;
+  rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr pub_compressed_img_;
   rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr pub_camera_info_;
   rclcpp::TimerBase::SharedPtr m_wait_for_device_timer_callback_;
   rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr m_trigger_an_image_srv_;

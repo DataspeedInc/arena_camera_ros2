@@ -5,6 +5,7 @@
 // ROS
 #include "rmw/types.h"
 #include <ament_index_cpp/get_package_share_directory.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 // ArenaSDK
 #include "ArenaCameraNode.h"
@@ -69,7 +70,7 @@ void ArenaCameraNode::parse_parameters_()
         camera_info_msg.k[i] = camera_matrix_data[i].as<double>();
       }
       auto distortion_data = camera_info_data["distortion_coefficients"]["data"];
-      camera_info_msg.d.reserve(5);
+      camera_info_msg.d.resize(5);
       for (int i = 0; i < 5; i++) {
         camera_info_msg.d[i] = distortion_data[i].as<double>();
       }
@@ -175,6 +176,7 @@ void ArenaCameraNode::initialize_()
   }
 
   pub_img_ = this->create_publisher<sensor_msgs::msg::Image>("image_raw", pub_qos_);
+  pub_compressed_img_ = this->create_publisher<sensor_msgs::msg::CompressedImage>("image_raw/compressed", pub_qos_);
 
   if (camera_info_available_) {
     pub_camera_info_ = this->create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", pub_qos_);
@@ -232,11 +234,18 @@ void ArenaCameraNode::publish_images_()
       pImage = m_pDevice->GetImage(1000);
       msg_from_image_(pImage, *p_image_msg);
 
+      auto p_compressed_image_msg = std::make_unique<sensor_msgs::msg::CompressedImage>();
+      cv::Mat raw_img = cv_bridge::toCvCopy(*p_image_msg, pixelformat_ros_)->image;
+      cv_bridge::CvImage img_bridge = cv_bridge::CvImage(p_image_msg->header, pixelformat_ros_, raw_img);
+      img_bridge.toCompressedImageMsg(*p_compressed_image_msg);
+
       if (pub_camera_info_) {
         camera_info_msg.header = p_image_msg->header;
         pub_camera_info_->publish(camera_info_msg);
       }
       pub_img_->publish(std::move(p_image_msg));
+      pub_compressed_img_->publish(std::move(p_compressed_image_msg));
+
 
       log_debug(std::string("image ") + std::to_string(pImage->GetFrameId()) +
                " published to " + topic_);

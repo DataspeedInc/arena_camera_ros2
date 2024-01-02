@@ -30,6 +30,7 @@ namespace arena_camera_ros2 {
     rclcpp::SensorDataQoS pub_qos_;
     pub_qos_.reliability(RMW_QOS_POLICY_RELIABILITY_RELIABLE);
     pub_img = n->create_publisher<sensor_msgs::msg::Image>(camera_name + "/image_raw", pub_qos_);
+    pub_compressed_img = n->create_publisher<sensor_msgs::msg::CompressedImage>(camera_name + "/image_raw/compressed", pub_qos_);
 
     YAML::Node camera_info_data;
     if (camera_info_file.empty() || camera_info_pkg.empty()) {
@@ -170,11 +171,17 @@ namespace arena_camera_ros2 {
       std::memcpy(&image_msg.data[0], pImage->GetData(),
                   image_data_length_in_bytes);
 
+      auto compressed_image_msg = std::make_unique<sensor_msgs::msg::CompressedImage>();
+      cv::Mat raw_img = cv_bridge::toCvCopy(image_msg, pixelformat_ros)->image;
+      cv_bridge::CvImage img_bridge = cv_bridge::CvImage(image_msg.header, pixelformat_ros, raw_img);
+      img_bridge.toCompressedImageMsg(*compressed_image_msg);
+
       if (pub_cam_info) {
         camera_info_msg.header = image_msg.header;
         pub_cam_info->publish(camera_info_msg);
       }
       pub_img->publish(std::move(image_msg));
+      pub_compressed_img->publish(std::move(compressed_image_msg));
       m_pDevice->RequeueBuffer(pImage);
       return image_stamp;
     } catch (GenICam_3_3_LUCID::RuntimeException& ex) {

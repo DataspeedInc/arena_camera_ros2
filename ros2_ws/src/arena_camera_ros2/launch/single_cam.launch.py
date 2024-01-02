@@ -10,15 +10,23 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
 def generate_launch_description():
+
     composable_nodes = [
+        ComposableNode(
+            package='image_proc',
+            plugin='image_proc::DebayerNode',
+            name='debayer_node',
+            remappings=[
+                ('image', 'image_raw')
+            ]
+        ),
         ComposableNode(
             package='image_proc',
             plugin='image_proc::RectifyNode',
             name='rectify_color_node',
             namespace=LaunchConfiguration('ns'),
             remappings=[
-                ('image', 'image_raw'),
-                ('image_rect', 'image_rect_color')
+                ('image', 'image_color')
             ],
         ),
         ComposableNode(
